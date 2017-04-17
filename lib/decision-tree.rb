@@ -108,8 +108,17 @@ module DecisionTree
 	    end
 
 
-	    def predict(vector)
-
+	    def predict(vector, default=nil)
+	    	if @child_nodes.size==0
+	    		probability = Hash.new(0)
+	    		@labels.each{|k| probability[k] += 1 }
+	    		probability.each{|k,v| probability[k] = v / @labels.size.to_f }
+	    		return probability.to_json
+	    	else
+	    		feature_value = vector[feature_index]
+	    		return default if not @child_nodes.has_key?(feature_value)
+		    	return @child_nodes[feature_value].predict(vector)
+		    end
 	    end
 
 	    private

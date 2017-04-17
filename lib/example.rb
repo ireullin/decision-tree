@@ -1,4 +1,4 @@
-require './decision-tree.rb'
+require 'decision-tree.rb'
 require 'json'
 
 data = [
@@ -14,5 +14,11 @@ data = [
 ]
 
 
-root = DecisionTree.train(data, algorithm:'c45', columns:['feature1','feature2','feature3','feature4'])
+#root = DecisionTree.train(data)
+#root = DecisionTree.train(data, columns:['col1','col2','col3','col4'])
+root = DecisionTree.train(data, algorithm:'c45', columns:['col1','col2','col3','col4'])
 root.to_pseudo_code.each{|line| puts line}
+puts root.predict([0,0,0,0])
+puts root.predict([2,3,1,1],"out of rules")
+puts root.predict([3,3,1,1],"out of rules")
+
