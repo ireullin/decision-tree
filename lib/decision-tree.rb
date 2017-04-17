@@ -1,4 +1,3 @@
-require 'csv'
 require 'set'
 require 'json'
 
@@ -28,13 +27,20 @@ end
 
 
 class DecisionTree
-	def initialize(entries, columns=nil, algorithm='c45', dimension=nil, parent_node=nil, threshold=nil, path=nil)
-		@parent_node = parent_node
-		@path = if path.nil?
-			Array.new
-		else
-			path
-		end
+    def self.train(entries, **arg)
+        algorithm = arg[:algorithm] || 'c45'
+        TreeNode.new(entries, arg[:columns], algorithm)
+    end
+end
+
+class TreeNode
+    def initialize(entries, columns=nil, algorithm='c45', dimension=nil, parent_node=nil, threshold=nil, path=nil)
+        @parent_node = parent_node
+        @path = if path.nil?
+            Array.new
+        else
+            path
+        end
 
         @threshold = threshold
 
@@ -44,33 +50,32 @@ class DecisionTree
             raise "Unknown algorithm"
         end
 
-		@dimension = if dimension.nil?
-			entries[0][:features].size
-		else
-			dimension
-		end
+        @dimension = if dimension.nil?
+            entries[0][:features].size
+        else
+            dimension
+        end
 
-		@columns = if columns.nil?
-			@dimension.times.map{|i| "feature_#{i}"}
-		elsif columns.size != @dimension
-			raise "The number of columns is incorrect"
-		else
-			columns
-		end
+        @columns = if columns.nil?
+            @dimension.times.map{|i| "feature_#{i}"}
+        elsif columns.size != @dimension
+            raise "The number of columns is incorrect"
+        else
+            columns
+        end
 
 
-		@labels = entries.map{|x| x[:label]}
-		@entropy = @labels.entropy
-		@child_nodes = Hash.new
+        @labels = entries.map{|x| x[:label]}
+        @entropy = @labels.entropy
+        @child_nodes = Hash.new
 
-		return if @path.size == @dimension
-		return if @entropy==0.0
+        return if @path.size == @dimension
+        return if @entropy==0.0
 
-		@path << choose_best_feature(entries)
+        @path << choose_best_feature(entries)
 
-		build_child_nodes(entries)
-	end
-
+        build_child_nodes(entries)
+    end
 
 	def feature_index
 		@path[-1]
@@ -94,11 +99,17 @@ class DecisionTree
         end
 
         @child_nodes.each do |feature_value,child_node|
-            buff << "#{indent}if(#{feature_name} == #{feature_value}){"
+            # buff << "#{indent}if(#{feature_name} == #{feature_value}){"
+            buff << "#{indent}if(#{feature_index} == #{feature_value}){"
             child_node.to_pseudo_code(buff, indent+"  " )
             buff << "#{indent}}"
         end
         return buff
+    end
+
+
+    def predict(vector)
+
     end
 
     private
@@ -132,7 +143,7 @@ class DecisionTree
 		end
 
 		buff.each do |feature_value,child_entries|
-			@child_nodes[feature_value] = DecisionTree.new(child_entries, @columns, @algorithm, @dimension, self, feature_value, @path.dup)
+			@child_nodes[feature_value] = TreeNode.new(child_entries, @columns, @algorithm, @dimension, self, feature_value, @path.dup)
 		end
 	end
 end
