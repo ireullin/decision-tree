@@ -26,124 +26,132 @@ module Enumerable
 end
 
 
-class DecisionTree
+module DecisionTree
     def self.train(entries, **arg)
         algorithm = arg[:algorithm] || 'c45'
-        TreeNode.new(entries, arg[:columns], algorithm)
-    end
-end
-
-class TreeNode
-    def initialize(entries, columns=nil, algorithm='c45', dimension=nil, parent_node=nil, threshold=nil, path=nil)
-        @parent_node = parent_node
-        @path = if path.nil?
-            Array.new
-        else
-            path
-        end
-
-        @threshold = threshold
-
-        @algorithm = if algorithm=='c45' or algorithm=='id3'
-            algorithm
-        else
-            raise "Unknown algorithm"
-        end
-
-        @dimension = if dimension.nil?
-            entries[0][:features].size
-        else
-            dimension
-        end
-
-        @columns = if columns.nil?
-            @dimension.times.map{|i| "feature_#{i}"}
-        elsif columns.size != @dimension
-            raise "The number of columns is incorrect"
-        else
-            columns
-        end
-
-
-        @labels = entries.map{|x| x[:label]}
-        @entropy = @labels.entropy
-        @child_nodes = Hash.new
-
-        return if @path.size == @dimension
-        return if @entropy==0.0
-
-        @path << choose_best_feature(entries)
-
-        build_child_nodes(entries)
-    end
-
-	def feature_index
-		@path[-1]
-	end
-
-
-	def feature_name
-		@columns[ @path[-1] ]
-	end
-
-    def to_pseudo_code(buff=nil,indent="")
-        buff = Array.new if buff.nil?
-
-        if @child_nodes.size==0
-            result = @labels.to_set.to_a
-            if result.size==1
-                buff << "#{indent}return #{result[0]}"
-            else
-                buff << "#{indent}return #{@labels}"
-            end
-        end
-
-        @child_nodes.each do |feature_value,child_node|
-            # buff << "#{indent}if(#{feature_name} == #{feature_value}){"
-            buff << "#{indent}if(#{feature_index} == #{feature_value}){"
-            child_node.to_pseudo_code(buff, indent+"  " )
-            buff << "#{indent}}"
-        end
-        return buff
+        Node.new(entries, arg[:columns], algorithm)
     end
 
 
-    def predict(vector)
+	class Node
+	    def initialize(entries, columns=nil, algorithm='c45', dimension=nil, parent_node=nil, threshold=nil, path=nil)
+	        @parent_node = parent_node
+	        @path = if path.nil?
+	            Array.new
+	        else
+	            path
+	        end
 
-    end
+	        @threshold = threshold
 
-    private
-	def choose_best_feature(entries)
+	        @algorithm = if algorithm=='c45' or algorithm=='id3'
+	            algorithm
+	        else
+	            raise "Unknown algorithm"
+	        end
 
-		labels = entries.map{|x| x[:label]}
+	        @dimension = if dimension.nil?
+	            entries[0][:features].size
+	        else
+	            dimension
+	        end
 
-		max_ig = {index: -1, ig: -1}
-		@dimension.times do |i|
-			next if @path.include?(i)
-			child_entropy = entries.map{|x| x[:features][i]}.concitional_entropy_with(labels)
-
-            ig = if @algorithm=='id3'
-                @entropy - child_entropy
-            else# c45
-                (@entropy - child_entropy) / entries.map{|x| x[:features][i]}.entropy
-            end
-
-            max_ig = {index: i, ig: ig} if ig > max_ig[:ig]
-		end
-		return max_ig[:index]
-	end
+	        @columns = if columns.nil?
+	            @dimension.times.map{|i| "feature_#{i}"}
+	        elsif columns.size != @dimension
+	            raise "The number of columns is incorrect"
+	        else
+	            columns
+	        end
 
 
-	def build_child_nodes(entries)
+	        @labels = entries.map{|x| x[:label]}
+	        @entropy = @labels.entropy
+	        @child_nodes = Hash.new
 
-		buff = Hash.new{|h,feature_value| h[feature_value] = Array.new}
-		entries.each do |e|
-			feature_value = e[:features][feature_index]
-			buff[feature_value] << e
+	        return if @path.size == @dimension
+	        return if @entropy==0.0
+
+	        @path << choose_best_feature(entries)
+
+	        build_child_nodes(entries)
+	    end
+
+		def feature_index
+			@path[-1]
 		end
 
-		buff.each do |feature_value,child_entries|
-			@child_nodes[feature_value] = TreeNode.new(child_entries, @columns, @algorithm, @dimension, self, feature_value, @path.dup)
+
+		def feature_name
+			@columns[ @path[-1] ]
+		end
+
+	    def to_pseudo_code(buff=nil,indent="")
+	        buff = Array.new if buff.nil?
+
+	        if @child_nodes.size==0
+	            result = @labels.to_set.to_a
+	            if result.size==1
+	                buff << "#{indent}return #{result[0]}"
+	            else
+	                buff << "#{indent}return #{@labels}"
+	            end
+	        end
+
+	        @child_nodes.each do |feature_value,child_node|
+	            buff << "#{indent}if(#{feature_name} == #{feature_value}){"
+	            # buff << "#{indent}if(#{feature_index} == #{feature_value}){"
+	            child_node.to_pseudo_code(buff, indent+"  " )
+	            buff << "#{indent}}"
+	        end
+	        return buff
+	    end
+
+
+	    def predict(vector)
+
+	    end
+
+	    private
+		def choose_best_feature(entries)
+
+			labels = entries.map{|x| x[:label]}
+
+			max_ig = {index: -1, ig: -1.0}
+			@dimension.times do |i|
+				next if @path.include?(i)
+				child_entropy = entries.map{|x| x[:features][i]}.concitional_entropy_with(labels)
+				
+	            ig = if @algorithm=='id3'
+	                @entropy - child_entropy
+	            else# c45
+	                a = (@entropy - child_entropy)
+	                b = entries.map{|x| x[:features][i]}.entropy
+	                # puts "@path=#{@path}"
+	                # puts "i=#{i} @entropy=#{@entropy} child_entropy=#{child_entropy} a=#{a} b=#{b}"
+	                gain = (@entropy - child_entropy) / entries.map{|x| x[:features][i]}.entropy
+	                gain = 0 if gain.nan?
+	                gain
+	            end
+
+	            max_ig = {index: i, ig: ig} if ig > max_ig[:ig]
+	            # puts "max_ig=#{max_ig} ig=#{ig}"
+			end
+			return max_ig[:index]
+		end
+
+
+		def build_child_nodes(entries)
+
+			buff = Hash.new{|h,feature_value| h[feature_value] = Array.new}
+			entries.each do |e|
+				feature_value = e[:features][feature_index]
+				buff[feature_value] << e
+			end
+
+			buff.each do |feature_value,child_entries|
+				@child_nodes[feature_value] = Node.new(child_entries, @columns, @algorithm, @dimension, self, feature_value, @path.dup)
+			end
 		end
 	end
 end
