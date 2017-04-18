@@ -74,7 +74,15 @@ module DecisionTree
 
 	        @path << choose_best_feature(entries)
 
-	        build_child_nodes(entries)
+	        if @algorithm == 'id3'
+	        	build_child_nodes(entries)
+	        elsif algorithm=='c45'
+	        	if type=='continuous'
+	        		build_child_nodes_with_continuous_value(entries)
+	        	else
+	        		build_child_nodes(entries)
+	        	end
+	        end
 	    end
 
 		def feature_index
@@ -83,7 +91,12 @@ module DecisionTree
 
 
 		def feature_name
-			@columns[ @path[-1] ]
+			@columns[ @path[-1] ].split(':')[0]
+		end
+
+		def type
+			t = @columns[ @path[-1] ].split(':')[1]
+			t || 'string'
 		end
 
 	    def to_pseudo_code(buff=nil,indent="")
@@ -98,9 +111,14 @@ module DecisionTree
 	            end
 	        end
 
+	        operator = if @algorithm=='c45' and type=='continuous'
+	        	">="
+	        else
+	        	"=="
+	        end
+
 	        @child_nodes.each do |feature_value,child_node|
-	            buff << "#{indent}if(#{feature_name} == #{feature_value}){"
-	            # buff << "#{indent}if(#{feature_index} == #{feature_value}){"
+	            buff << "#{indent}if(#{feature_name} #{operator} #{feature_value}){"
 	            child_node.to_pseudo_code(buff, indent+"  " )
 	            buff << "#{indent}}"
 	        end
@@ -130,21 +148,16 @@ module DecisionTree
 			@dimension.times do |i|
 				next if @path.include?(i)
 				child_entropy = entries.map{|x| x[:features][i]}.concitional_entropy_with(labels)
-				
+
 	            ig = if @algorithm=='id3'
 	                @entropy - child_entropy
 	            else# c45
-	                a = (@entropy - child_entropy)
-	                b = entries.map{|x| x[:features][i]}.entropy
-	                # puts "@path=#{@path}"
-	                # puts "i=#{i} @entropy=#{@entropy} child_entropy=#{child_entropy} a=#{a} b=#{b}"
 	                gain = (@entropy - child_entropy) / entries.map{|x| x[:features][i]}.entropy
 	                gain = 0 if gain.nan?
 	                gain
 	            end
 
 	            max_ig = {index: i, ig: ig} if ig > max_ig[:ig]
-	            # puts "max_ig=#{max_ig} ig=#{ig}"
 			end
 			return max_ig[:index]
 		end
@@ -161,6 +174,28 @@ module DecisionTree
 			buff.each do |feature_value,child_entries|
 				@child_nodes[feature_value] = Node.new(child_entries, @columns, @algorithm, @dimension, self, feature_value, @path.dup)
 			end
+		end
+
+		def build_child_nodes_with_continuous_value(entries)
+
+			last_label = nil
+			last_value = nil
+			buff = Hash.new{|h,feature_value| h[feature_value] = Array.new}
+			entries.sort_by{|e| e[:features][feature_index].to_f }.each_with_index do |e, i|
+
+				feature_value = e[:features][feature_index]
+				if last_label != e[:label].to_s
+					last_value = feature_value.to_s
+					last_label = e[:label].to_s
+				end
+
+				buff[last_value] << e
+			end
+
+			buff.each do |feature_value,child_entries|
+				@child_nodes[feature_value] = Node.new(child_entries, @columns, @algorithm, @dimension, self, feature_value, @path.dup)
+			end
+
 		end
 	end
 end
