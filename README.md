@@ -58,3 +58,33 @@ puts root.predict([0,"A",0,0,0.7])
 puts root.predict([2,"C",1,1,0.5],"out of rules")
 puts root.predict([3,"C",1,1,0.1],"out of rules")
 ```
+
+## Output below
+```
+if(col5 >= 0.8){
+  return n
+}
+else{
+  if(col1 == 0){
+    if(col4 == 0){
+      if(col2 == A){
+        if(col3 == 0){
+          return ["y", "n"]
+        }
+      }
+    }
+    if(col4 == 1){
+      return n
+    }
+  }
+  if(col1 == 1){
+    return y
+  }
+  if(col1 == 2){
+    return y
+  }
+}
+{"y"=>0.5, "n"=>0.5}
+{"y"=>1.0}
+out of rules
+```
