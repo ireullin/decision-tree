@@ -77,13 +77,14 @@ module DecisionTree
 	        if @algorithm == 'id3'
 	        	build_child_nodes(entries)
 	        elsif algorithm=='c45'
-	        	if type=='continuous'
+	        	if feature_type=='num'
 	        		build_child_nodes_with_continuous_value(entries)
 	        	else
 	        		build_child_nodes(entries)
 	        	end
 	        end
 	    end
+
 
 		def feature_index
 			@path[-1]
@@ -94,13 +95,15 @@ module DecisionTree
 			@columns[ @path[-1] ].split(':')[0]
 		end
 
-		def type
+
+		def feature_type
 			t = @columns[ @path[-1] ].split(':')[1]
 			t || 'string'
 		end
 
-	    def to_pseudo_code(buff=nil,indent="")
-	        buff = Array.new if buff.nil?
+
+		def to_pseudo_code(buff=nil,indent="")
+			buff = Array.new if buff.nil?
 
 	        if @child_nodes.size==0
 	            result = @labels.to_set.to_a
@@ -109,19 +112,27 @@ module DecisionTree
 	            else
 	                buff << "#{indent}return #{@labels}"
 	            end
+	            return buff
 	        end
 
-	        operator = if @algorithm=='c45' and type=='continuous'
-	        	">="
+	        if @algorithm=='c45' and feature_type=='num'
+	        	sorted_nodes = @child_nodes.sort_by{|k,v| k.to_f }
+	        	sorted_nodes[1..-1].to_a.each do |feature_value,child_node|
+		            buff << "#{indent}if(#{feature_name} >= #{feature_value}){"
+		            child_node.to_pseudo_code(buff, indent+"  " )
+		            buff << "#{indent}}"
+		        end
+		        buff << "#{indent}else{"
+		        sorted_nodes[0][1].to_pseudo_code(buff, indent+"  " )
+		        buff << "#{indent}}"
 	        else
-	        	"=="
+	        	@child_nodes.each do |feature_value,child_node|
+		            buff << "#{indent}if(#{feature_name} == #{feature_value}){"
+		            child_node.to_pseudo_code(buff, indent+"  " )
+		            buff << "#{indent}}"
+		        end
 	        end
 
-	        @child_nodes.each do |feature_value,child_node|
-	            buff << "#{indent}if(#{feature_name} #{operator} #{feature_value}){"
-	            child_node.to_pseudo_code(buff, indent+"  " )
-	            buff << "#{indent}}"
-	        end
 	        return buff
 	    end
 
@@ -131,11 +142,24 @@ module DecisionTree
 	    		probability = Hash.new(0)
 	    		@labels.each{|k| probability[k] += 1 }
 	    		probability.each{|k,v| probability[k] = v / @labels.size.to_f }
-	    		return probability.to_json
+	    		return probability
 	    	else
-	    		feature_value = vector[feature_index]
-	    		return default if not @child_nodes.has_key?(feature_value)
-		    	return @child_nodes[feature_value].predict(vector)
+	    		if @algorithm=='c45' and feature_type=='num'
+	    			curr_value = vector[feature_index]
+
+	    			sorted_nodes = @child_nodes.sort_by{|k,v| k.to_f }
+	        		last_node = sorted_nodes[0][1]
+	        		sorted_nodes[1..-1].to_a.each do |feature_value,child_node|
+	        			break if curr_value.to_f < feature_value.to_f
+	        			last_node = child_node
+	        		end
+
+		    		return last_node.predict(vector)
+	    		else
+	    			feature_value = vector[feature_index]
+	    			return default if not @child_nodes.has_key?(feature_value)
+		    		return @child_nodes[feature_value].predict(vector)
+		    	end
 		    end
 	    end
 
@@ -176,14 +200,19 @@ module DecisionTree
 			end
 		end
 
+
 		def build_child_nodes_with_continuous_value(entries)
 
-			last_label = nil
-			last_value = nil
 			buff = Hash.new{|h,feature_value| h[feature_value] = Array.new}
-			entries.sort_by{|e| e[:features][feature_index].to_f }.each_with_index do |e, i|
+			sorted_entries = entries.sort_by{|e| e[:features][feature_index].to_f }
+
+			last_label = nil #sorted_entries[0][:label].to_s
+			last_value = nil # sorted_entries[0][:features][feature_index]
+
+			sorted_entries.each_with_index do |e, i|
 
 				feature_value = e[:features][feature_index]
+
 				if last_label != e[:label].to_s
 					last_value = feature_value.to_s
 					last_label = e[:label].to_s
