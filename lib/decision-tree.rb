@@ -154,11 +154,11 @@ module DecisionTree
 	        			last_node = child_node
 	        		end
 
-		    		return last_node.predict(vector)
+		    		return last_node.predict(vector,default)
 	    		else
 	    			feature_value = vector[feature_index]
 	    			return default if not @child_nodes.has_key?(feature_value)
-		    		return @child_nodes[feature_value].predict(vector)
+		    		return @child_nodes[feature_value].predict(vector,default)
 		    	end
 		    end
 	    end
